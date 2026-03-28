@@ -8,7 +8,7 @@ import com.ecommerce.exception.InsufficientStockException;
 import com.ecommerce.exception.ResourceNotFoundException;
 import com.ecommerce.repository.*;
 import com.ecommerce.service.OrderService;
-import com.ecommerce.service.PaymentService;
+import com.ecommerce.service.PaymentGatewayService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -30,7 +30,7 @@ public class OrderServiceImpl implements OrderService {
     private final CartRepository cartRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
-    private final PaymentService paymentService;
+    private final PaymentGatewayService paymentGatewayService;
 
     @Override
     @Transactional
@@ -57,7 +57,8 @@ public class OrderServiceImpl implements OrderService {
             }
 
             if (product.getStockQuantity() < cartItem.getQuantity()) {
-                throw new InsufficientStockException(product.getName(), product.getStockQuantity(), cartItem.getQuantity());
+                throw new InsufficientStockException(product.getName(),
+                        product.getStockQuantity(), cartItem.getQuantity());
             }
 
             product.setStockQuantity(product.getStockQuantity() - cartItem.getQuantity());
@@ -97,7 +98,8 @@ public class OrderServiceImpl implements OrderService {
         order = orderRepository.save(order);
 
         try {
-            PaymentDto.CreatePaymentIntentResponse paymentIntent = paymentService.createPaymentIntent(order.getId(), totalPrice);
+            PaymentDto.CreatePaymentIntentResponse paymentIntent =
+                    paymentGatewayService.createPaymentIntent(order.getId(), totalPrice);
             order.setStripePaymentIntentId(paymentIntent.getPaymentIntentId());
             order.setStripeClientSecret(paymentIntent.getClientSecret());
             order = orderRepository.save(order);
@@ -143,9 +145,11 @@ public class OrderServiceImpl implements OrderService {
         }
 
         for (OrderItem item : order.getItems()) {
-            Product product = item.getProduct();
-            product.setStockQuantity(product.getStockQuantity() + item.getQuantity());
-            productRepository.save(product);
+            if (item.getProduct() != null) {
+                Product product = item.getProduct();
+                product.setStockQuantity(product.getStockQuantity() + item.getQuantity());
+                productRepository.save(product);
+            }
         }
 
         order.setOrderStatus(Order.OrderStatus.CANCELLED);
@@ -160,15 +164,16 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public void updatePaymentStatus(String paymentIntentId, String status) {
         Order order = orderRepository.findByStripePaymentIntentId(paymentIntentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found for paymentIntentId: " + paymentIntentId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Order not found for paymentIntentId: " + paymentIntentId));
 
-        switch (status) {
-            case "succeeded" -> {
-                order.setPaymentStatus(Order.PaymentStatus.PAID);
-                order.setOrderStatus(Order.OrderStatus.CONFIRMED);
-            }
-            case "payment_failed" -> order.setPaymentStatus(Order.PaymentStatus.FAILED);
-            default -> log.warn("Unhandled payment status: {}", status);
+        if ("succeeded".equals(status)) {
+            order.setPaymentStatus(Order.PaymentStatus.PAID);
+            order.setOrderStatus(Order.OrderStatus.CONFIRMED);
+        } else if ("payment_failed".equals(status)) {
+            order.setPaymentStatus(Order.PaymentStatus.FAILED);
+        } else {
+            log.warn("Unhandled payment status: {}", status);
         }
 
         orderRepository.save(order);
@@ -231,7 +236,8 @@ public class OrderServiceImpl implements OrderService {
 
     private OrderDto.PagedResponse buildPagedResponse(Page<Order> page) {
         OrderDto.PagedResponse pagedResponse = new OrderDto.PagedResponse();
-        pagedResponse.setOrders(page.getContent().stream().map(this::mapToResponse).collect(Collectors.toList()));
+        pagedResponse.setOrders(page.getContent().stream()
+                .map(this::mapToResponse).collect(Collectors.toList()));
         pagedResponse.setCurrentPage(page.getNumber());
         pagedResponse.setTotalItems(page.getTotalElements());
         pagedResponse.setTotalPages(page.getTotalPages());

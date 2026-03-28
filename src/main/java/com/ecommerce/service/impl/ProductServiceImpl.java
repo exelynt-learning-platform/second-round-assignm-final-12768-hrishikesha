@@ -12,6 +12,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Objects;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -70,13 +72,13 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", id));
 
-        if (request.getName() != null)          product.setName(request.getName());
-        if (request.getDescription() != null)   product.setDescription(request.getDescription());
-        if (request.getPrice() != null)         product.setPrice(request.getPrice());
-        if (request.getStockQuantity() != null) product.setStockQuantity(request.getStockQuantity());
-        if (request.getImageUrl() != null)      product.setImageUrl(request.getImageUrl());
-        if (request.getCategory() != null)      product.setCategory(request.getCategory());
-        if (request.getActive() != null)        product.setActive(request.getActive());
+        product.setName(Objects.requireNonNullElse(request.getName(), product.getName()));
+        product.setDescription(Objects.requireNonNullElse(request.getDescription(), product.getDescription()));
+        product.setPrice(Objects.requireNonNullElse(request.getPrice(), product.getPrice()));
+        product.setStockQuantity(Objects.requireNonNullElse(request.getStockQuantity(), product.getStockQuantity()));
+        product.setImageUrl(Objects.requireNonNullElse(request.getImageUrl(), product.getImageUrl()));
+        product.setCategory(Objects.requireNonNullElse(request.getCategory(), product.getCategory()));
+        product.setActive(Objects.requireNonNullElse(request.getActive(), product.getActive()));
 
         product = productRepository.save(product);
         log.info("Updated product with id: {}", product.getId());

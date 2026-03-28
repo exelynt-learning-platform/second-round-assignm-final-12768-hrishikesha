@@ -46,16 +46,19 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
 
         if (product.getStockQuantity() < request.getQuantity()) {
-            throw new InsufficientStockException(product.getName(), product.getStockQuantity(), request.getQuantity());
+            throw new InsufficientStockException(product.getName(),
+                    product.getStockQuantity(), request.getQuantity());
         }
 
-        Optional<CartItem> existingItem = cartItemRepository.findByCartIdAndProductId(cart.getId(), product.getId());
+        Optional<CartItem> existingItem = cartItemRepository
+                .findByCartIdAndProductId(cart.getId(), product.getId());
 
         if (existingItem.isPresent()) {
             CartItem item = existingItem.get();
             int newQty = item.getQuantity() + request.getQuantity();
             if (product.getStockQuantity() < newQty) {
-                throw new InsufficientStockException(product.getName(), product.getStockQuantity(), newQty);
+                throw new InsufficientStockException(product.getName(),
+                        product.getStockQuantity(), newQty);
             }
             item.setQuantity(newQty);
             cartItemRepository.save(item);
@@ -86,13 +89,13 @@ public class CartServiceImpl implements CartService {
 
         Product product = item.getProduct();
         if (product.getStockQuantity() < request.getQuantity()) {
-            throw new InsufficientStockException(product.getName(), product.getStockQuantity(), request.getQuantity());
+            throw new InsufficientStockException(product.getName(),
+                    product.getStockQuantity(), request.getQuantity());
         }
 
         item.setQuantity(request.getQuantity());
         cartItemRepository.save(item);
 
-        cart = cartRepository.findById(cart.getId()).orElseThrow();
         return mapToResponse(cart);
     }
 

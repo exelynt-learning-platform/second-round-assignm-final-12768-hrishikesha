@@ -2,7 +2,7 @@ package com.ecommerce.service.impl;
 
 import com.ecommerce.dto.PaymentDto;
 import com.ecommerce.exception.PaymentException;
-import com.ecommerce.service.OrderService;
+import com.ecommerce.service.PaymentGatewayService;
 import com.ecommerce.service.PaymentService;
 import com.stripe.Stripe;
 import com.stripe.exception.SignatureVerificationException;
@@ -14,34 +14,43 @@ import com.stripe.param.PaymentIntentCreateParams;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 
 @Service
 @Slf4j
-public class PaymentServiceImpl implements PaymentService {
+public class PaymentServiceImpl implements PaymentGatewayService {
 
-    @Value("${stripe.api.key}")
+    @Value("${stripe.api.key:}")
     private String stripeApiKey;
 
-    @Value("${stripe.webhook.secret}")
+    @Value("${stripe.webhook.secret:}")
     private String webhookSecret;
 
-    private final OrderService orderService;
+    private final PaymentService paymentService;
 
-    public PaymentServiceImpl(@Lazy OrderService orderService) {
-        this.orderService = orderService;
+    public PaymentServiceImpl(PaymentService paymentService) {
+        this.paymentService = paymentService;
     }
 
     @PostConstruct
     public void init() {
+        if (!StringUtils.hasText(stripeApiKey)) {
+            log.warn("Stripe API key is not configured. Payment processing will be unavailable.");
+            return;
+        }
         Stripe.apiKey = stripeApiKey;
+        log.info("Stripe initialized successfully.");
     }
 
     @Override
     public PaymentDto.CreatePaymentIntentResponse createPaymentIntent(Long orderId, BigDecimal amount) {
+        if (!StringUtils.hasText(stripeApiKey)) {
+            throw new PaymentException("Stripe is not configured. Set STRIPE_API_KEY environment variable.");
+        }
+
         try {
             long amountInCents = amount.multiply(BigDecimal.valueOf(100)).longValue();
 
@@ -56,7 +65,6 @@ public class PaymentServiceImpl implements PaymentService {
                     .build();
 
             PaymentIntent paymentIntent = PaymentIntent.create(params);
-
             log.info("Created Stripe PaymentIntent {} for order {}", paymentIntent.getId(), orderId);
 
             return new PaymentDto.CreatePaymentIntentResponse(
@@ -73,8 +81,11 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public void handleWebhookEvent(String payload, String sigHeader) {
-        Event event;
+        if (!StringUtils.hasText(webhookSecret)) {
+            throw new PaymentException("Stripe webhook secret is not configured.");
+        }
 
+        Event event;
         try {
             event = Webhook.constructEvent(payload, sigHeader, webhookSecret);
         } catch (SignatureVerificationException e) {
@@ -89,13 +100,13 @@ public class PaymentServiceImpl implements PaymentService {
                 PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer()
                         .getObject()
                         .orElseThrow(() -> new PaymentException("Failed to deserialize PaymentIntent"));
-                orderService.updatePaymentStatus(paymentIntent.getId(), "succeeded");
+                paymentService.updatePaymentStatus(paymentIntent.getId(), "succeeded");
             }
             case "payment_intent.payment_failed" -> {
                 PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer()
                         .getObject()
                         .orElseThrow(() -> new PaymentException("Failed to deserialize PaymentIntent"));
-                orderService.updatePaymentStatus(paymentIntent.getId(), "payment_failed");
+                paymentService.updatePaymentStatus(paymentIntent.getId(), "payment_failed");
             }
             default -> log.info("Unhandled Stripe event: {}", event.getType());
         }

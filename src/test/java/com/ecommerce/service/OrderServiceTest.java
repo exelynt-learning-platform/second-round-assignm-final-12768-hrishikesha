@@ -29,7 +29,7 @@ class OrderServiceTest {
     @Mock private CartRepository cartRepository;
     @Mock private ProductRepository productRepository;
     @Mock private UserRepository userRepository;
-    @Mock private PaymentService paymentService;
+    @Mock private PaymentGatewayService paymentGatewayService;
 
     @InjectMocks
     private OrderServiceImpl orderService;
@@ -81,7 +81,7 @@ class OrderServiceTest {
 
         PaymentDto.CreatePaymentIntentResponse mockPayment =
                 new PaymentDto.CreatePaymentIntentResponse("pi_secret", "pi_123", 10000L, "usd");
-        when(paymentService.createPaymentIntent(any(), any())).thenReturn(mockPayment);
+        when(paymentGatewayService.createPaymentIntent(any(), any())).thenReturn(mockPayment);
 
         Order savedOrder = Order.builder()
                 .id(1L)
