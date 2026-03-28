@@ -11,6 +11,7 @@ import com.ecommerce.service.OrderService;
 import com.ecommerce.service.PaymentGatewayService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -22,7 +23,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class OrderServiceImpl implements OrderService {
 
@@ -31,6 +31,19 @@ public class OrderServiceImpl implements OrderService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final PaymentGatewayService paymentGatewayService;
+
+    public OrderServiceImpl(
+            OrderRepository orderRepository,
+            CartRepository cartRepository,
+            ProductRepository productRepository,
+            UserRepository userRepository,
+            @Lazy PaymentGatewayService paymentGatewayService) {
+        this.orderRepository = orderRepository;
+        this.cartRepository = cartRepository;
+        this.productRepository = productRepository;
+        this.userRepository = userRepository;
+        this.paymentGatewayService = paymentGatewayService;
+    }
 
     @Override
     @Transactional
@@ -50,7 +63,8 @@ public class OrderServiceImpl implements OrderService {
 
         for (CartItem cartItem : cart.getItems()) {
             Product product = productRepository.findById(cartItem.getProduct().getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Product", cartItem.getProduct().getId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("Product",
+                            cartItem.getProduct().getId()));
 
             if (!product.getActive()) {
                 throw new BadRequestException("Product is no longer available: " + product.getName());
@@ -125,8 +139,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public OrderDto.PagedResponse getUserOrders(Long userId, Pageable pageable) {
-        Page<Order> page = orderRepository.findByUserId(userId, pageable);
-        return buildPagedResponse(page);
+        return buildPagedResponse(orderRepository.findByUserId(userId, pageable));
     }
 
     @Override
@@ -183,8 +196,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public OrderDto.PagedResponse getAllOrders(Pageable pageable) {
-        Page<Order> page = orderRepository.findAll(pageable);
-        return buildPagedResponse(page);
+        return buildPagedResponse(orderRepository.findAll(pageable));
     }
 
     @Override
@@ -199,8 +211,7 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException("Invalid order status: " + status);
         }
 
-        order = orderRepository.save(order);
-        return mapToResponse(order);
+        return mapToResponse(orderRepository.save(order));
     }
 
     private OrderDto.Response mapToResponse(Order order) {

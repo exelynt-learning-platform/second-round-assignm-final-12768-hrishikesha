@@ -3,7 +3,6 @@ package com.ecommerce.service.impl;
 import com.ecommerce.dto.PaymentDto;
 import com.ecommerce.exception.PaymentException;
 import com.ecommerce.service.PaymentGatewayService;
-import com.ecommerce.service.PaymentService;
 import com.stripe.Stripe;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.exception.StripeException;
@@ -12,6 +11,7 @@ import com.stripe.model.PaymentIntent;
 import com.stripe.net.Webhook;
 import com.stripe.param.PaymentIntentCreateParams;
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class PaymentServiceImpl implements PaymentGatewayService {
 
@@ -29,15 +30,12 @@ public class PaymentServiceImpl implements PaymentGatewayService {
     @Value("${stripe.webhook.secret:}")
     private String webhookSecret;
 
-    private final PaymentService paymentService;
-
-    public PaymentServiceImpl(PaymentService paymentService) {
-        this.paymentService = paymentService;
-    }
+    private final OrderServiceImpl orderService;
 
     @PostConstruct
     public void init() {
-        if (!StringUtils.hasText(stripeApiKey)) {
+        if (!StringUtils.hasText(stripeApiKey) ||
+                stripeApiKey.equals("sk_test_YOUR_STRIPE_KEY_HERE")) {
             log.warn("Stripe API key is not configured. Payment processing will be unavailable.");
             return;
         }
@@ -47,8 +45,10 @@ public class PaymentServiceImpl implements PaymentGatewayService {
 
     @Override
     public PaymentDto.CreatePaymentIntentResponse createPaymentIntent(Long orderId, BigDecimal amount) {
-        if (!StringUtils.hasText(stripeApiKey)) {
-            throw new PaymentException("Stripe is not configured. Set STRIPE_API_KEY environment variable.");
+        if (!StringUtils.hasText(stripeApiKey) ||
+                stripeApiKey.equals("sk_test_YOUR_STRIPE_KEY_HERE")) {
+            throw new PaymentException(
+                    "Stripe is not configured. Set STRIPE_API_KEY environment variable.");
         }
 
         try {
@@ -81,7 +81,8 @@ public class PaymentServiceImpl implements PaymentGatewayService {
 
     @Override
     public void handleWebhookEvent(String payload, String sigHeader) {
-        if (!StringUtils.hasText(webhookSecret)) {
+        if (!StringUtils.hasText(webhookSecret) ||
+                webhookSecret.equals("whsec_YOUR_WEBHOOK_SECRET_HERE")) {
             throw new PaymentException("Stripe webhook secret is not configured.");
         }
 
@@ -100,13 +101,13 @@ public class PaymentServiceImpl implements PaymentGatewayService {
                 PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer()
                         .getObject()
                         .orElseThrow(() -> new PaymentException("Failed to deserialize PaymentIntent"));
-                paymentService.updatePaymentStatus(paymentIntent.getId(), "succeeded");
+                orderService.updatePaymentStatus(paymentIntent.getId(), "succeeded");
             }
             case "payment_intent.payment_failed" -> {
                 PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer()
                         .getObject()
                         .orElseThrow(() -> new PaymentException("Failed to deserialize PaymentIntent"));
-                paymentService.updatePaymentStatus(paymentIntent.getId(), "payment_failed");
+                orderService.updatePaymentStatus(paymentIntent.getId(), "payment_failed");
             }
             default -> log.info("Unhandled Stripe event: {}", event.getType());
         }
