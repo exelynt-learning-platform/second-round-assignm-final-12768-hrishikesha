@@ -10,17 +10,15 @@ import com.stripe.model.Event;
 import com.stripe.model.PaymentIntent;
 import com.stripe.net.Webhook;
 import com.stripe.param.PaymentIntentCreateParams;
-import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class PaymentServiceImpl implements PaymentGatewayService {
 
@@ -32,24 +30,28 @@ public class PaymentServiceImpl implements PaymentGatewayService {
 
     private final OrderServiceImpl orderService;
 
-    @PostConstruct
-    public void init() {
-        if (!StringUtils.hasText(stripeApiKey) ||
-                stripeApiKey.equals("sk_test_YOUR_STRIPE_KEY_HERE")) {
-            log.warn("Stripe API key is not configured. Payment processing will be unavailable.");
-            return;
+    public PaymentServiceImpl(@Lazy OrderServiceImpl orderService) {
+        this.orderService = orderService;
+    }
+
+    private boolean isStripeConfigured() {
+        return StringUtils.hasText(stripeApiKey)
+                && !stripeApiKey.equals("sk_test_YOUR_STRIPE_KEY_HERE");
+    }
+
+    private void initStripeIfNeeded() {
+        if (isStripeConfigured()) {
+            Stripe.apiKey = stripeApiKey;
         }
-        Stripe.apiKey = stripeApiKey;
-        log.info("Stripe initialized successfully.");
     }
 
     @Override
     public PaymentDto.CreatePaymentIntentResponse createPaymentIntent(Long orderId, BigDecimal amount) {
-        if (!StringUtils.hasText(stripeApiKey) ||
-                stripeApiKey.equals("sk_test_YOUR_STRIPE_KEY_HERE")) {
-            throw new PaymentException(
-                    "Stripe is not configured. Set STRIPE_API_KEY environment variable.");
+        if (!isStripeConfigured()) {
+            throw new PaymentException("Stripe is not configured. Set STRIPE_API_KEY environment variable.");
         }
+
+        initStripeIfNeeded();
 
         try {
             long amountInCents = amount.multiply(BigDecimal.valueOf(100)).longValue();

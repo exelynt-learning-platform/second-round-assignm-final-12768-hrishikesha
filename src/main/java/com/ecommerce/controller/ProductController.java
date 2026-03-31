@@ -19,20 +19,15 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class ProductController {
 
-    private static final int DEFAULT_PAGE_SIZE = 10;
-    private static final String DEFAULT_SORT_FIELD = "createdAt";
-    private static final String SORT_DIR_ASC = "asc";
-    private static final String SORT_DIR_DESC = "desc";
-
     private final ProductService productService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<ProductDto.Response>> createProduct(
             @Valid @RequestBody ProductDto.CreateRequest request) {
-        ProductDto.Response product = productService.createProduct(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Product created successfully", product));
+                .body(ApiResponse.success("Product created successfully",
+                        productService.createProduct(request)));
     }
 
     @GetMapping("/{id}")
@@ -44,12 +39,12 @@ public class ProductController {
     public ResponseEntity<ApiResponse<Page<ProductDto.Response>>> getAllProducts(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = DEFAULT_SORT_FIELD) String sortBy,
-            @RequestParam(defaultValue = SORT_DIR_DESC) String sortDir,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String search) {
 
-        Sort sort = SORT_DIR_ASC.equalsIgnoreCase(sortDir)
+        Sort sort = "asc".equalsIgnoreCase(sortDir)
                 ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -71,8 +66,8 @@ public class ProductController {
     public ResponseEntity<ApiResponse<ProductDto.Response>> updateProduct(
             @PathVariable Long id,
             @Valid @RequestBody ProductDto.UpdateRequest request) {
-        ProductDto.Response product = productService.updateProduct(id, request);
-        return ResponseEntity.ok(ApiResponse.success("Product updated successfully", product));
+        return ResponseEntity.ok(ApiResponse.success("Product updated successfully",
+                productService.updateProduct(id, request)));
     }
 
     @DeleteMapping("/{id}")

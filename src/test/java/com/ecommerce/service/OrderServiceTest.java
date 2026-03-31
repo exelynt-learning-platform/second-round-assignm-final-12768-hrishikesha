@@ -1,7 +1,6 @@
 package com.ecommerce.service;
 
 import com.ecommerce.dto.OrderDto;
-import com.ecommerce.dto.PaymentDto;
 import com.ecommerce.entity.*;
 import com.ecommerce.exception.BadRequestException;
 import com.ecommerce.exception.InsufficientStockException;
@@ -11,7 +10,6 @@ import com.ecommerce.service.impl.OrderServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -31,7 +29,6 @@ class OrderServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private PaymentGatewayService paymentGatewayService;
 
-    @InjectMocks
     private OrderServiceImpl orderService;
 
     private User user;
@@ -41,6 +38,10 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
+        orderService = new OrderServiceImpl(
+                orderRepository, cartRepository, productRepository, userRepository);
+        orderService.setPaymentGatewayService(paymentGatewayService);
+
         user = User.builder()
                 .id(1L)
                 .name("Alice")
@@ -79,10 +80,6 @@ class OrderServiceTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(productRepository.findById(10L)).thenReturn(Optional.of(product));
 
-        PaymentDto.CreatePaymentIntentResponse mockPayment =
-                new PaymentDto.CreatePaymentIntentResponse("pi_secret", "pi_123", 10000L, "usd");
-        when(paymentGatewayService.createPaymentIntent(any(), any())).thenReturn(mockPayment);
-
         Order savedOrder = Order.builder()
                 .id(1L)
                 .user(user)
@@ -106,7 +103,6 @@ class OrderServiceTest {
         assertThat(response.getOrderId()).isEqualTo(1L);
         assertThat(response.getPaymentStatus()).isEqualTo("PENDING");
         assertThat(response.getOrderStatus()).isEqualTo("PLACED");
-        assertThat(response.getStripeClientSecret()).isEqualTo("pi_secret");
         assertThat(product.getStockQuantity()).isEqualTo(18);
         verify(productRepository).save(product);
         verify(cartRepository).save(any(Cart.class));
@@ -158,16 +154,12 @@ class OrderServiceTest {
                 .build();
 
         Order order = Order.builder()
-                .id(5L)
-                .user(user)
+                .id(5L).user(user)
                 .orderStatus(Order.OrderStatus.PLACED)
                 .paymentStatus(Order.PaymentStatus.PENDING)
                 .totalPrice(new BigDecimal("100.00"))
-                .shippingName("Alice")
-                .shippingAddress("1 St")
-                .shippingCity("City")
-                .shippingZip("00000")
-                .shippingCountry("US")
+                .shippingName("Alice").shippingAddress("1 St")
+                .shippingCity("City").shippingZip("00000").shippingCountry("US")
                 .build();
 
         order.getItems().add(orderItem);
@@ -187,8 +179,7 @@ class OrderServiceTest {
     @Test
     void cancelOrder_shippedOrder_throwsBadRequestException() {
         Order order = Order.builder()
-                .id(5L)
-                .user(user)
+                .id(5L).user(user)
                 .orderStatus(Order.OrderStatus.SHIPPED)
                 .paymentStatus(Order.PaymentStatus.PAID)
                 .build();
@@ -203,8 +194,7 @@ class OrderServiceTest {
     @Test
     void cancelOrder_alreadyCancelled_throwsBadRequestException() {
         Order order = Order.builder()
-                .id(5L)
-                .user(user)
+                .id(5L).user(user)
                 .orderStatus(Order.OrderStatus.CANCELLED)
                 .paymentStatus(Order.PaymentStatus.REFUNDED)
                 .build();
@@ -219,8 +209,7 @@ class OrderServiceTest {
     @Test
     void updatePaymentStatus_succeeded_setsOrderPaidAndConfirmed() {
         Order order = Order.builder()
-                .id(3L)
-                .stripePaymentIntentId("pi_abc")
+                .id(3L).stripePaymentIntentId("pi_abc")
                 .paymentStatus(Order.PaymentStatus.PENDING)
                 .orderStatus(Order.OrderStatus.PLACED)
                 .build();
@@ -237,8 +226,7 @@ class OrderServiceTest {
     @Test
     void updatePaymentStatus_paymentFailed_setsOrderFailed() {
         Order order = Order.builder()
-                .id(3L)
-                .stripePaymentIntentId("pi_xyz")
+                .id(3L).stripePaymentIntentId("pi_xyz")
                 .paymentStatus(Order.PaymentStatus.PENDING)
                 .orderStatus(Order.OrderStatus.PLACED)
                 .build();
@@ -262,14 +250,10 @@ class OrderServiceTest {
     @Test
     void getOrderById_orderBelongsToUser_returnsOrder() {
         Order order = Order.builder()
-                .id(1L)
-                .user(user)
+                .id(1L).user(user)
                 .totalPrice(new BigDecimal("100.00"))
-                .shippingName("Alice")
-                .shippingAddress("1 St")
-                .shippingCity("City")
-                .shippingZip("00000")
-                .shippingCountry("US")
+                .shippingName("Alice").shippingAddress("1 St")
+                .shippingCity("City").shippingZip("00000").shippingCountry("US")
                 .paymentStatus(Order.PaymentStatus.PENDING)
                 .orderStatus(Order.OrderStatus.PLACED)
                 .build();

@@ -2,6 +2,7 @@ package com.ecommerce.service.impl;
 
 import com.ecommerce.dto.ProductDto;
 import com.ecommerce.entity.Product;
+import com.ecommerce.exception.BadRequestException;
 import com.ecommerce.exception.ResourceNotFoundException;
 import com.ecommerce.repository.ProductRepository;
 import com.ecommerce.service.ProductService;
@@ -11,8 +12,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -72,13 +71,30 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", id));
 
-        product.setName(Objects.requireNonNullElse(request.getName(), product.getName()));
-        product.setDescription(Objects.requireNonNullElse(request.getDescription(), product.getDescription()));
-        product.setPrice(Objects.requireNonNullElse(request.getPrice(), product.getPrice()));
-        product.setStockQuantity(Objects.requireNonNullElse(request.getStockQuantity(), product.getStockQuantity()));
-        product.setImageUrl(Objects.requireNonNullElse(request.getImageUrl(), product.getImageUrl()));
-        product.setCategory(Objects.requireNonNullElse(request.getCategory(), product.getCategory()));
-        product.setActive(Objects.requireNonNullElse(request.getActive(), product.getActive()));
+        if (request.getName() != null) {
+            if (request.getName().isBlank()) throw new BadRequestException("Product name cannot be blank");
+            product.setName(request.getName());
+        }
+        if (request.getDescription() != null) {
+            product.setDescription(request.getDescription());
+        }
+        if (request.getPrice() != null) {
+            if (request.getPrice().signum() <= 0) throw new BadRequestException("Price must be greater than 0");
+            product.setPrice(request.getPrice());
+        }
+        if (request.getStockQuantity() != null) {
+            if (request.getStockQuantity() < 0) throw new BadRequestException("Stock quantity cannot be negative");
+            product.setStockQuantity(request.getStockQuantity());
+        }
+        if (request.getImageUrl() != null) {
+            product.setImageUrl(request.getImageUrl());
+        }
+        if (request.getCategory() != null) {
+            product.setCategory(request.getCategory());
+        }
+        if (request.getActive() != null) {
+            product.setActive(request.getActive());
+        }
 
         product = productRepository.save(product);
         log.info("Updated product with id: {}", product.getId());

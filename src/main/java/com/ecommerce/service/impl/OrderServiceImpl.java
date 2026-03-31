@@ -9,8 +9,8 @@ import com.ecommerce.exception.ResourceNotFoundException;
 import com.ecommerce.repository.*;
 import com.ecommerce.service.OrderService;
 import com.ecommerce.service.PaymentGatewayService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,18 +30,21 @@ public class OrderServiceImpl implements OrderService {
     private final CartRepository cartRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
-    private final PaymentGatewayService paymentGatewayService;
+    private PaymentGatewayService paymentGatewayService;
 
     public OrderServiceImpl(
             OrderRepository orderRepository,
             CartRepository cartRepository,
             ProductRepository productRepository,
-            UserRepository userRepository,
-            @Lazy PaymentGatewayService paymentGatewayService) {
+            UserRepository userRepository) {
         this.orderRepository = orderRepository;
         this.cartRepository = cartRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
+    }
+
+    @Autowired
+    public void setPaymentGatewayService(@Lazy PaymentGatewayService paymentGatewayService) {
         this.paymentGatewayService = paymentGatewayService;
     }
 

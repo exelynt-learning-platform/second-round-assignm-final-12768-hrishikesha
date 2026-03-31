@@ -1,6 +1,8 @@
 package com.ecommerce.service;
 
+import com.ecommerce.dto.PaymentDto;
 import com.ecommerce.exception.PaymentException;
+import com.ecommerce.service.impl.OrderServiceImpl;
 import com.ecommerce.service.impl.PaymentServiceImpl;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.net.Webhook;
@@ -21,7 +23,7 @@ import static org.mockito.Mockito.*;
 class PaymentServiceTest {
 
     @Mock
-    private OrderService orderService;
+    private OrderServiceImpl orderService;
 
     @InjectMocks
     private PaymentServiceImpl paymentService;
@@ -41,11 +43,20 @@ class PaymentServiceTest {
     }
 
     @Test
-    void createPaymentIntent_invalidApiKey_throwsPaymentException() {
-        ReflectionTestUtils.setField(paymentService, "stripeApiKey", "sk_test_invalid");
+    void createPaymentIntent_stripeNotConfigured_throwsPaymentException() {
+        ReflectionTestUtils.setField(paymentService, "stripeApiKey", "");
 
         assertThatThrownBy(() -> paymentService.createPaymentIntent(1L, new BigDecimal("100.00")))
                 .isInstanceOf(PaymentException.class)
-                .hasMessageContaining("Failed to create payment intent");
+                .hasMessageContaining("Stripe is not configured");
+    }
+
+    @Test
+    void handleWebhookEvent_webhookSecretNotConfigured_throwsPaymentException() {
+        ReflectionTestUtils.setField(paymentService, "webhookSecret", "");
+
+        assertThatThrownBy(() -> paymentService.handleWebhookEvent("payload", "sig"))
+                .isInstanceOf(PaymentException.class)
+                .hasMessageContaining("webhook secret is not configured");
     }
 }
